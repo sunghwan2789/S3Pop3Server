@@ -1,0 +1,11 @@
+﻿{
+  "profiles": {
+    "S3Pop3Server": {
+      "commandName": "Project",
+      "dotnetRunMessages": "true",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}
