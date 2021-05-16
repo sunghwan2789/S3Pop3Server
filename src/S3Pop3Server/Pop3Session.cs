@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Authentication;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -11,7 +12,7 @@ namespace S3Pop3Server
 {
     public class Pop3Session
     {
-        private enum Pop3SessionState
+        private enum State
         {
             Connected,
             Authorization,
@@ -20,7 +21,7 @@ namespace S3Pop3Server
             Closed,
         }
 
-        private enum Pop3SessionTrigger
+        private enum Trigger
         {
             Start,
             Apop,
@@ -38,54 +39,82 @@ namespace S3Pop3Server
         public EndPoint EndPoint => Client.Client.RemoteEndPoint;
         public StreamReader Reader { get; }
         public StreamWriter Writer { get; }
-        private readonly StateMachine<Pop3SessionState, Pop3SessionTrigger> _machine;
+        public NetworkCredential Credential { get; private set; }
+
+        private readonly StateMachine<State, Trigger> _machine;
+        private readonly StateMachine<State, Trigger>.TriggerWithParameters<NetworkCredential> _apopTrigger;
 
         public Pop3Session(TcpClient client, StreamReader reader, StreamWriter writer)
         {
             Client = client;
             Reader = reader;
             Writer = writer;
-            _machine = new StateMachine<Pop3SessionState, Pop3SessionTrigger>(Pop3SessionState.Connected);
+
+            _machine = new(State.Connected);
+            _apopTrigger = _machine.SetTriggerParameters<NetworkCredential>(Trigger.Apop);
 
             ConfigureStateMachine();
         }
 
         public Task Start()
         {
-            return _machine.FireAsync(Pop3SessionTrigger.Start);
+            return _machine.FireAsync(Trigger.Start);
+        }
+
+        public async Task Invoke(string command, string[] arguments)
+        {
+            try
+            {
+                var triggerTask = command.ToUpperInvariant() switch
+                {
+                    "APOP" => Apop(new(arguments[0], arguments[1])),
+                    "QUIT" => Quit(),
+                    _ => throw new NotImplementedException(command),
+                };
+                await triggerTask;
+            }
+            catch (Exception ex)
+            {
+                await Writer.WriteLineAsync($"-ERR {ex}");
+            }
+        }
+
+        public Task Apop(NetworkCredential credential)
+        {
+            return _machine.FireAsync(_apopTrigger, credential);
+        }
+
+        public Task Quit()
+        {
+            return _machine.FireAsync(Trigger.Quit);
         }
 
         private void ConfigureStateMachine()
         {
-            _machine.Configure(Pop3SessionState.Connected)
-                .Permit(Pop3SessionTrigger.Start, Pop3SessionState.Authorization);
+            _machine.Configure(State.Connected)
+                .Permit(Trigger.Start, State.Authorization);
 
-            _machine.Configure(Pop3SessionState.Authorization)
+            _machine.Configure(State.Authorization)
                 .OnEntryAsync(OnAuthorization)
-                .Permit(Pop3SessionTrigger.Apop, Pop3SessionState.Transaction)
-                .Permit(Pop3SessionTrigger.Quit, Pop3SessionState.Closed);
+                .Permit(Trigger.Apop, State.Transaction)
+                .Permit(Trigger.Quit, State.Closed);
 
-            _machine.Configure(Pop3SessionState.Transaction)
-                .OnEntryAsync(OnTransaction)
-                .PermitReentry(Pop3SessionTrigger.Stat)
-                .PermitReentry(Pop3SessionTrigger.List)
-                .PermitReentry(Pop3SessionTrigger.Retr)
-                .PermitReentry(Pop3SessionTrigger.Dele)
-                .PermitReentry(Pop3SessionTrigger.Noop)
-                .PermitReentry(Pop3SessionTrigger.Rset)
-                .Permit(Pop3SessionTrigger.Quit, Pop3SessionState.Update);
+            _machine.Configure(State.Transaction)
+                .OnEntryFromAsync(_apopTrigger, OnTransaction)
+                .PermitReentry(Trigger.Stat)
+                .PermitReentry(Trigger.List)
+                .PermitReentry(Trigger.Retr)
+                .PermitReentry(Trigger.Dele)
+                .PermitReentry(Trigger.Noop)
+                .PermitReentry(Trigger.Rset)
+                .Permit(Trigger.Quit, State.Update);
 
-            _machine.Configure(Pop3SessionState.Update)
+            _machine.Configure(State.Update)
                 .OnEntryAsync(OnUpdate)
-                .Permit(Pop3SessionTrigger.Close, Pop3SessionState.Closed);
+                .Permit(Trigger.Close, State.Closed);
 
-            _machine.Configure(Pop3SessionState.Closed)
+            _machine.Configure(State.Closed)
                 .OnEntryAsync(OnClosed);
-
-            _machine.OnUnhandledTriggerAsync(async (state, trigger) =>
-            {
-                await Writer.WriteLineAsync("-ERR");
-            });
         }
 
         private Task OnAuthorization()
@@ -93,9 +122,16 @@ namespace S3Pop3Server
             return Writer.WriteLineAsync("+OK POP3 server ready");
         }
 
-        private Task OnTransaction()
+        private Task OnTransaction(NetworkCredential credential)
         {
-            throw new NotImplementedException();
+            if (credential.UserName != "admin")
+            {
+                throw new AuthenticationException();
+            }
+
+            Credential = credential;
+
+            return Writer.WriteLineAsync("+OK");
         }
 
         private Task OnUpdate()
@@ -105,7 +141,8 @@ namespace S3Pop3Server
 
         private Task OnClosed()
         {
-            throw new NotImplementedException();
+            Client.Close();
+            return Task.CompletedTask;
         }
     }
 }

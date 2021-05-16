@@ -50,6 +50,7 @@ namespace S3Pop3Server
 
                 var (command, arguments) = GetMessage(buffer[..received]);
                 _logger.LogDebug("{@EndPoint} - Command {command} / {arguments}", session.EndPoint, command, arguments);
+                await session.Invoke(command, arguments);
             }
         }
 
