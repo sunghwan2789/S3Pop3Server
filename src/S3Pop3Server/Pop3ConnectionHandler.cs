@@ -45,9 +45,8 @@ namespace S3Pop3Server
                 NewLine = ControlChars.CrLf,
             };
 
-            var session = new Pop3Session(client, reader, writer);
-
             using var scope = _scopeFactory.CreateScope();
+            var session = new Pop3Session(client, reader, writer, scope.ServiceProvider.GetService<ILogger<Pop3Session>>());
             var sessionHandler = scope.ServiceProvider.GetRequiredService<Pop3SessionHandler>();
             try
             {

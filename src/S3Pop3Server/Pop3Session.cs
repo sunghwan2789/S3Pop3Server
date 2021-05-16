@@ -41,15 +41,17 @@ namespace S3Pop3Server
         public StreamWriter Writer { get; }
         public NetworkCredential Credential { get; private set; }
 
+        private readonly ILogger<Pop3Session> _logger;
         private readonly StateMachine<State, Trigger> _machine;
         private readonly StateMachine<State, Trigger>.TriggerWithParameters<NetworkCredential> _apopTrigger;
 
-        public Pop3Session(TcpClient client, StreamReader reader, StreamWriter writer)
+        public Pop3Session(TcpClient client, StreamReader reader, StreamWriter writer, ILogger<Pop3Session> logger)
         {
             Client = client;
             Reader = reader;
             Writer = writer;
 
+            _logger = logger;
             _machine = new(State.Connected);
             _apopTrigger = _machine.SetTriggerParameters<NetworkCredential>(Trigger.Apop);
 
