@@ -6,6 +6,7 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using Amazon.Runtime;
 using Amazon.S3;
+using MediatR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -26,6 +27,9 @@ namespace S3Pop3Server
                     services.AddHostedService<Pop3Listener>();
                     services.AddTransient<Pop3ConnectionHandler>();
                     services.AddTransient<Pop3SessionHandler>();
+
+                    services.AddOptions<S3Options>().BindConfiguration("S3");
+                    services.AddMediatR(typeof(Program));
 
                     var awsOptions = hostContext.Configuration.GetAWSOptions();
                     awsOptions.Credentials = new BasicAWSCredentials(

@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -46,7 +47,9 @@ namespace S3Pop3Server
             };
 
             using var scope = _scopeFactory.CreateScope();
-            var session = new Pop3Session(client, reader, writer, scope.ServiceProvider.GetService<ILogger<Pop3Session>>());
+            var session = new Pop3Session(client, reader, writer,
+                scope.ServiceProvider.GetRequiredService<IMediator>(),
+                scope.ServiceProvider.GetService<ILogger<Pop3Session>>());
             var sessionHandler = scope.ServiceProvider.GetRequiredService<Pop3SessionHandler>();
             try
             {

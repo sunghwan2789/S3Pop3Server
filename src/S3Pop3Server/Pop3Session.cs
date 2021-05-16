@@ -5,7 +5,9 @@ using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Text;
 using System.Threading.Tasks;
+using MediatR;
 using Microsoft.Extensions.Logging;
+using S3Pop3Server.Queries;
 using Stateless;
 
 namespace S3Pop3Server
@@ -41,16 +43,18 @@ namespace S3Pop3Server
         public StreamWriter Writer { get; }
         public NetworkCredential Credential { get; private set; }
 
+        private readonly IMediator _mediator;
         private readonly ILogger<Pop3Session> _logger;
         private readonly StateMachine<State, Trigger> _machine;
         private readonly StateMachine<State, Trigger>.TriggerWithParameters<NetworkCredential> _apopTrigger;
 
-        public Pop3Session(TcpClient client, StreamReader reader, StreamWriter writer, ILogger<Pop3Session> logger)
+        public Pop3Session(TcpClient client, StreamReader reader, StreamWriter writer, IMediator mediator, ILogger<Pop3Session> logger)
         {
             Client = client;
             Reader = reader;
             Writer = writer;
 
+            _mediator = mediator;
             _logger = logger;
             _machine = new(State.Connected);
             _apopTrigger = _machine.SetTriggerParameters<NetworkCredential>(Trigger.Apop);
@@ -71,6 +75,7 @@ namespace S3Pop3Server
                 {
                     "APOP" => Apop(new(arguments[0], arguments[1])),
                     "QUIT" => Quit(),
+                    "STAT" => Stat(),
                     _ => throw new NotImplementedException(command),
                 };
                 await triggerTask;
@@ -91,6 +96,11 @@ namespace S3Pop3Server
             return _machine.FireAsync(Trigger.Quit);
         }
 
+        public Task Stat()
+        {
+            return _machine.FireAsync(Trigger.Stat);
+        }
+
         private void ConfigureStateMachine()
         {
             _machine.Configure(State.Connected)
@@ -103,6 +113,7 @@ namespace S3Pop3Server
 
             _machine.Configure(State.Transaction)
                 .OnEntryFromAsync(_apopTrigger, OnTransaction)
+                .OnEntryFromAsync(Trigger.Stat, OnStat)
                 .PermitReentry(Trigger.Stat)
                 .PermitReentry(Trigger.List)
                 .PermitReentry(Trigger.Retr)
@@ -134,6 +145,12 @@ namespace S3Pop3Server
             Credential = credential;
 
             return Writer.WriteLineAsync("+OK");
+        }
+
+        private async Task OnStat()
+        {
+            var response = await _mediator.Send(new GetMaildropStatusQuery());
+            await Writer.WriteLineAsync($"+OK {response.MessageCount} {response.Size}");
         }
 
         private Task OnUpdate()
