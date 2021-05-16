@@ -41,12 +41,11 @@ namespace S3Pop3Server
         public EndPoint EndPoint => Client.Client.RemoteEndPoint;
         public StreamReader Reader { get; }
         public StreamWriter Writer { get; }
-        public NetworkCredential Credential { get; private set; }
 
         private readonly IMediator _mediator;
         private readonly ILogger<Pop3Session> _logger;
         private readonly StateMachine<State, Trigger> _machine;
-        private readonly StateMachine<State, Trigger>.TriggerWithParameters<NetworkCredential> _apopTrigger;
+        private readonly StateMachine<State, Trigger>.TriggerWithParameters<string, string> _apopTrigger;
 
         public Pop3Session(TcpClient client, StreamReader reader, StreamWriter writer, IMediator mediator, ILogger<Pop3Session> logger)
         {
@@ -57,7 +56,7 @@ namespace S3Pop3Server
             _mediator = mediator;
             _logger = logger;
             _machine = new(State.Connected);
-            _apopTrigger = _machine.SetTriggerParameters<NetworkCredential>(Trigger.Apop);
+            _apopTrigger = _machine.SetTriggerParameters<string, string>(Trigger.Apop);
 
             ConfigureStateMachine();
         }
@@ -73,7 +72,7 @@ namespace S3Pop3Server
             {
                 var triggerTask = command.ToUpperInvariant() switch
                 {
-                    "APOP" => Apop(new(arguments[0], arguments[1])),
+                    "APOP" => Apop(arguments[0], arguments[1]),
                     "QUIT" => Quit(),
                     "STAT" => Stat(),
                     _ => throw new NotImplementedException(command),
@@ -86,9 +85,9 @@ namespace S3Pop3Server
             }
         }
 
-        public Task Apop(NetworkCredential credential)
+        public Task Apop(string name, string digest)
         {
-            return _machine.FireAsync(_apopTrigger, credential);
+            return _machine.FireAsync(_apopTrigger, name, digest);
         }
 
         public Task Quit()
@@ -132,17 +131,16 @@ namespace S3Pop3Server
 
         private Task OnAuthorization()
         {
-            return Writer.WriteLineAsync("+OK POP3 server ready");
+            var timestamp = $"<1896.{DateTime.UtcNow.Ticks}@dbc.mtview.ca.us>";
+            return Writer.WriteLineAsync($"+OK POP3 server ready {timestamp}");
         }
 
-        private Task OnTransaction(NetworkCredential credential)
+        private Task OnTransaction(string name, string digest)
         {
-            if (credential.UserName != "admin")
+            if (name != "admin")
             {
                 throw new AuthenticationException();
             }
-
-            Credential = credential;
 
             return Writer.WriteLineAsync("+OK");
         }
