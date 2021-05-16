@@ -23,9 +23,15 @@ namespace S3Pop3Server
         private enum Pop3SessionTrigger
         {
             Start,
-            User,
-            Pass,
             Apop,
+            Quit,
+            Stat,
+            List,
+            Retr,
+            Dele,
+            Noop,
+            Rset,
+            Close,
         }
 
         public TcpClient Client { get; }
@@ -55,16 +61,51 @@ namespace S3Pop3Server
                 .Permit(Pop3SessionTrigger.Start, Pop3SessionState.Authorization);
 
             _machine.Configure(Pop3SessionState.Authorization)
-                .OnEntryAsync(OnAuthorization);
+                .OnEntryAsync(OnAuthorization)
+                .Permit(Pop3SessionTrigger.Apop, Pop3SessionState.Transaction)
+                .Permit(Pop3SessionTrigger.Quit, Pop3SessionState.Closed);
+
+            _machine.Configure(Pop3SessionState.Transaction)
+                .OnEntryAsync(OnTransaction)
+                .PermitReentry(Pop3SessionTrigger.Stat)
+                .PermitReentry(Pop3SessionTrigger.List)
+                .PermitReentry(Pop3SessionTrigger.Retr)
+                .PermitReentry(Pop3SessionTrigger.Dele)
+                .PermitReentry(Pop3SessionTrigger.Noop)
+                .PermitReentry(Pop3SessionTrigger.Rset)
+                .Permit(Pop3SessionTrigger.Quit, Pop3SessionState.Update);
+
+            _machine.Configure(Pop3SessionState.Update)
+                .OnEntryAsync(OnUpdate)
+                .Permit(Pop3SessionTrigger.Close, Pop3SessionState.Closed);
+
+            _machine.Configure(Pop3SessionState.Closed)
+                .OnEntryAsync(OnClosed);
 
             _machine.OnUnhandledTriggerAsync(async (state, trigger) =>
             {
+                await Writer.WriteLineAsync("-ERR");
             });
         }
 
         private Task OnAuthorization()
         {
             return Writer.WriteLineAsync("+OK POP3 server ready");
+        }
+
+        private Task OnTransaction()
+        {
+            throw new NotImplementedException();
+        }
+
+        private Task OnUpdate()
+        {
+            throw new NotImplementedException();
+        }
+
+        private Task OnClosed()
+        {
+            throw new NotImplementedException();
         }
     }
 }
