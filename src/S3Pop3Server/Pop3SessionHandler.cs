@@ -53,7 +53,7 @@ namespace S3Pop3Server
             }
         }
 
-        private static (string command, string arguments) GetMessage(Span<char> buffer)
+        private static (string command, string[] arguments) GetMessage(Span<char> buffer)
         {
             var endOfMessage = buffer.IndexOf(ControlChars.CrLf);
             if (endOfMessage != -1)
@@ -62,16 +62,16 @@ namespace S3Pop3Server
             }
 
             var command = buffer;
+            var arguments = Span<char>.Empty;
 
             var startOfArguments = buffer.IndexOf(' ');
-            if (startOfArguments == -1)
+            if (startOfArguments != -1)
             {
-                return (command.ToString(), string.Empty);
+                command = buffer[..startOfArguments];
+                arguments = buffer[(startOfArguments + 1)..];
             }
 
-            command = buffer[..startOfArguments];
-            var arguments = buffer[(startOfArguments + 1)..];
-            return (command.ToString(), arguments.ToString());
+            return (command.ToString(), arguments.ToString().Split(' '));
         }
     }
 }
