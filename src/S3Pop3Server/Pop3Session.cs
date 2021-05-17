@@ -190,17 +190,13 @@ namespace S3Pop3Server
         {
             if (msg != null)
             {
-                var email = _emails.FirstOrDefault(email => email.MessageNumber == msg);
-                await Writer.WriteLineAsync(email switch
-                {
-                    null => $"-ERR no such message",
-                    _ => $"+OK {email.MessageNumber} {email.Size}",
-                });
+                var email = _emails.First(email => email.MessageNumber == msg);
+                await Writer.WriteLineAsync($"+OK {email.MessageNumber} {email.Size}");
                 return;
             }
 
             var currentEmails = _emails.Except(_toBeDeleted);
-            await Writer.WriteLineAsync($"+OK scan listing follows");
+            await Writer.WriteLineAsync($"+OK");
             foreach (var email in currentEmails)
             {
                 await Writer.WriteLineAsync($"{email.MessageNumber} {email.Size}");
