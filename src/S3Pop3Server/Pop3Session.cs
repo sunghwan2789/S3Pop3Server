@@ -32,6 +32,7 @@ namespace S3Pop3Server
             Apop,
             Quit,
             Stat,
+            Uidl,
             List,
             Top,
             Retr,
@@ -50,6 +51,7 @@ namespace S3Pop3Server
         private readonly ILogger<Pop3Session> _logger;
         private readonly StateMachine<State, Trigger> _machine;
         private readonly StateMachine<State, Trigger>.TriggerWithParameters<string, string> _apopTrigger;
+        private readonly StateMachine<State, Trigger>.TriggerWithParameters<int?> _uidlTrigger;
         private readonly StateMachine<State, Trigger>.TriggerWithParameters<int?> _listTrigger;
         private readonly StateMachine<State, Trigger>.TriggerWithParameters<int, int> _topTrigger;
         private readonly StateMachine<State, Trigger>.TriggerWithParameters<int> _retrTrigger;
@@ -67,6 +69,7 @@ namespace S3Pop3Server
             _logger = logger;
             _machine = new(State.Connected);
             _apopTrigger = _machine.SetTriggerParameters<string, string>(Trigger.Apop);
+            _uidlTrigger = _machine.SetTriggerParameters<int?>(Trigger.Uidl);
             _listTrigger = _machine.SetTriggerParameters<int?>(Trigger.List);
             _topTrigger = _machine.SetTriggerParameters<int, int>(Trigger.Top);
             _retrTrigger = _machine.SetTriggerParameters<int>(Trigger.Retr);
@@ -88,6 +91,7 @@ namespace S3Pop3Server
                     "APOP" => Apop(arguments[0], arguments[1]),
                     "QUIT" => Quit(),
                     "STAT" => Stat(),
+                    "UIDL" => Uidl(arguments.Any() ? int.Parse(arguments[0]) : null),
                     "LIST" => List(arguments.Any() ? int.Parse(arguments[0]) : null),
                     "TOP" => Top(int.Parse(arguments[0]), int.Parse(arguments[1])),
                     "RETR" => Retr(int.Parse(arguments[0])),
@@ -115,6 +119,11 @@ namespace S3Pop3Server
         public Task Stat()
         {
             return _machine.FireAsync(Trigger.Stat);
+        }
+
+        public Task Uidl(int? msg)
+        {
+            return _machine.FireAsync(_uidlTrigger, msg);
         }
 
         public Task List(int? msg)
@@ -145,6 +154,7 @@ namespace S3Pop3Server
             _machine.Configure(State.Transaction)
                 .OnEntryFromAsync(_apopTrigger, OnTransaction)
                 .InternalTransitionAsync(Trigger.Stat, _ => OnStat())
+                .InternalTransitionAsync(_uidlTrigger, (msg, _) => OnUidl(msg))
                 .InternalTransitionAsync(_listTrigger, (msg, _) => OnList(msg))
                 .InternalTransitionAsync(_topTrigger, (msg, n, _) => OnTop(msg, n))
                 .InternalTransitionAsync(_retrTrigger, (msg, _) => OnRetr(msg))
@@ -193,6 +203,24 @@ namespace S3Pop3Server
             var count = currentEmails.Count();
             var size = currentEmails.Sum(email => email.Size);
             await Writer.WriteLineAsync($"+OK {count} {size}");
+        }
+
+        private async Task OnUidl(int? msg)
+        {
+            if (msg != null)
+            {
+                var email = _emails.First(email => email.MessageNumber == msg);
+                await Writer.WriteLineAsync($"+OK {email.MessageNumber} {email.Id}");
+                return;
+            }
+
+            var currentEmails = _emails.Except(_toBeDeleted);
+            await Writer.WriteLineAsync($"+OK");
+            foreach (var email in currentEmails)
+            {
+                await Writer.WriteLineAsync($"{email.MessageNumber} {email.Id}");
+            }
+            await Writer.WriteLineAsync($".");
         }
 
         private async Task OnList(int? msg)
