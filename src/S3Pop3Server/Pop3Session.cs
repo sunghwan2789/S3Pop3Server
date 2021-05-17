@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Authentication;
@@ -46,6 +49,10 @@ namespace S3Pop3Server
         private readonly ILogger<Pop3Session> _logger;
         private readonly StateMachine<State, Trigger> _machine;
         private readonly StateMachine<State, Trigger>.TriggerWithParameters<string, string> _apopTrigger;
+        private readonly StateMachine<State, Trigger>.TriggerWithParameters<int?> _listTrigger;
+
+        private IImmutableList<Email> _emails;
+        private IImmutableSet<Email> _toBeDeleted;
 
         public Pop3Session(TcpClient client, StreamReader reader, StreamWriter writer, IMediator mediator, ILogger<Pop3Session> logger)
         {
@@ -57,6 +64,7 @@ namespace S3Pop3Server
             _logger = logger;
             _machine = new(State.Connected);
             _apopTrigger = _machine.SetTriggerParameters<string, string>(Trigger.Apop);
+            _listTrigger = _machine.SetTriggerParameters<int?>(Trigger.List);
 
             ConfigureStateMachine();
         }
@@ -75,6 +83,7 @@ namespace S3Pop3Server
                     "APOP" => Apop(arguments[0], arguments[1]),
                     "QUIT" => Quit(),
                     "STAT" => Stat(),
+                    "LIST" => List(arguments.Any() ? int.Parse(arguments[0]) : null),
                     _ => throw new NotImplementedException(command),
                 };
                 await triggerTask;
@@ -100,6 +109,11 @@ namespace S3Pop3Server
             return _machine.FireAsync(Trigger.Stat);
         }
 
+        public Task List(int? msg)
+        {
+            return _machine.FireAsync(_listTrigger, msg);
+        }
+
         private void ConfigureStateMachine()
         {
             _machine.Configure(State.Connected)
@@ -113,6 +127,7 @@ namespace S3Pop3Server
             _machine.Configure(State.Transaction)
                 .OnEntryFromAsync(_apopTrigger, OnTransaction)
                 .OnEntryFromAsync(Trigger.Stat, OnStat)
+                .OnEntryFromAsync(_listTrigger, OnList)
                 .PermitReentry(Trigger.Stat)
                 .PermitReentry(Trigger.List)
                 .PermitReentry(Trigger.Retr)
@@ -135,20 +150,54 @@ namespace S3Pop3Server
             return Writer.WriteLineAsync($"+OK POP3 server ready {timestamp}");
         }
 
-        private Task OnTransaction(string name, string digest)
+        private async Task OnTransaction(string name, string digest)
         {
             if (name != "admin")
             {
                 throw new AuthenticationException();
             }
 
-            return Writer.WriteLineAsync("+OK");
+            var response = await _mediator.Send(new GetMailboxListingQuery());
+
+            _emails = response.Items
+                .Select((email, index) => email with
+                {
+                    MessageNumber = index + 1,
+                })
+                .ToImmutableList();
+            _toBeDeleted = ImmutableHashSet<Email>.Empty;
+
+            await Writer.WriteLineAsync("+OK");
         }
 
         private async Task OnStat()
         {
-            var response = await _mediator.Send(new GetMaildropStatusQuery());
-            await Writer.WriteLineAsync($"+OK {response.MessageCount} {response.Size}");
+            var currentEmails = _emails.Except(_toBeDeleted);
+            var count = currentEmails.Count();
+            var size = currentEmails.Sum(email => email.Size);
+            await Writer.WriteLineAsync($"+OK {count} {size}");
+        }
+
+        private async Task OnList(int? msg)
+        {
+            if (msg != null)
+            {
+                var email = _emails.FirstOrDefault(email => email.MessageNumber == msg);
+                await Writer.WriteLineAsync(email switch
+                {
+                    null => $"-ERR no such message",
+                    _ => $"+OK {email.MessageNumber} {email.Size}",
+                });
+                return;
+            }
+
+            var currentEmails = _emails.Except(_toBeDeleted);
+            await Writer.WriteLineAsync($"+OK scan listing follows");
+            foreach (var email in currentEmails)
+            {
+                await Writer.WriteLineAsync($"{email.MessageNumber} {email.Size}");
+            }
+            await Writer.WriteLineAsync($".");
         }
 
         private Task OnUpdate()
