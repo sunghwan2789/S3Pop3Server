@@ -33,6 +33,7 @@ namespace S3Pop3Server
             Quit,
             Stat,
             List,
+            Top,
             Retr,
             Dele,
             Noop,
@@ -50,6 +51,7 @@ namespace S3Pop3Server
         private readonly StateMachine<State, Trigger> _machine;
         private readonly StateMachine<State, Trigger>.TriggerWithParameters<string, string> _apopTrigger;
         private readonly StateMachine<State, Trigger>.TriggerWithParameters<int?> _listTrigger;
+        private readonly StateMachine<State, Trigger>.TriggerWithParameters<int, int> _topTrigger;
         private readonly StateMachine<State, Trigger>.TriggerWithParameters<int> _retrTrigger;
 
         private IImmutableList<Email> _emails;
@@ -66,6 +68,7 @@ namespace S3Pop3Server
             _machine = new(State.Connected);
             _apopTrigger = _machine.SetTriggerParameters<string, string>(Trigger.Apop);
             _listTrigger = _machine.SetTriggerParameters<int?>(Trigger.List);
+            _topTrigger = _machine.SetTriggerParameters<int, int>(Trigger.Top);
             _retrTrigger = _machine.SetTriggerParameters<int>(Trigger.Retr);
 
             ConfigureStateMachine();
@@ -86,6 +89,7 @@ namespace S3Pop3Server
                     "QUIT" => Quit(),
                     "STAT" => Stat(),
                     "LIST" => List(arguments.Any() ? int.Parse(arguments[0]) : null),
+                    "TOP" => Top(int.Parse(arguments[0]), int.Parse(arguments[1])),
                     "RETR" => Retr(int.Parse(arguments[0])),
                     _ => throw new NotImplementedException(command),
                 };
@@ -118,6 +122,11 @@ namespace S3Pop3Server
             return _machine.FireAsync(_listTrigger, msg);
         }
 
+        public Task Top(int msg, int n)
+        {
+            return _machine.FireAsync(_topTrigger, msg, n);
+        }
+
         public Task Retr(int msg)
         {
             return _machine.FireAsync(_retrTrigger, msg);
@@ -137,6 +146,7 @@ namespace S3Pop3Server
                 .OnEntryFromAsync(_apopTrigger, OnTransaction)
                 .InternalTransitionAsync(Trigger.Stat, _ => OnStat())
                 .InternalTransitionAsync(_listTrigger, (msg, _) => OnList(msg))
+                .InternalTransitionAsync(_topTrigger, (msg, n, _) => OnTop(msg, n))
                 .InternalTransitionAsync(_retrTrigger, (msg, _) => OnRetr(msg))
                 .PermitReentry(Trigger.Dele)
                 .PermitReentry(Trigger.Noop)
@@ -199,6 +209,30 @@ namespace S3Pop3Server
             foreach (var email in currentEmails)
             {
                 await Writer.WriteLineAsync($"{email.MessageNumber} {email.Size}");
+            }
+            await Writer.WriteLineAsync($".");
+        }
+
+        private async Task OnTop(int msg, int n)
+        {
+            var response = await _mediator.Send(new GetMailboxContentQuery
+            {
+                Item = _emails.First(email => email.MessageNumber == msg),
+            });
+
+            await Writer.WriteLineAsync($"+OK");
+            using var reader = new StreamReader(response.ContentStream);
+
+            string line = null;
+            while (!string.IsNullOrEmpty(line = await reader.ReadLineAsync()))
+            {
+                await Writer.WriteLineAsync(line);
+            }
+            await Writer.WriteLineAsync();
+
+            for (var i = 0; i < n; i++)
+            {
+                await Writer.WriteLineAsync(await reader.ReadLineAsync());
             }
             await Writer.WriteLineAsync($".");
         }
