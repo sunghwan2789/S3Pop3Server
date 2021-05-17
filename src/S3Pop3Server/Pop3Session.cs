@@ -212,6 +212,7 @@ namespace S3Pop3Server
 
             await Writer.WriteLineAsync($"+OK");
             await response.ContentStream.CopyToAsync(Writer.BaseStream);
+            await Writer.WriteLineAsync();
             await Writer.WriteLineAsync($".");
         }
 
