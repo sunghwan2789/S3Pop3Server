@@ -50,6 +50,7 @@ namespace S3Pop3Server
         private readonly StateMachine<State, Trigger> _machine;
         private readonly StateMachine<State, Trigger>.TriggerWithParameters<string, string> _apopTrigger;
         private readonly StateMachine<State, Trigger>.TriggerWithParameters<int?> _listTrigger;
+        private readonly StateMachine<State, Trigger>.TriggerWithParameters<int> _retrTrigger;
 
         private IImmutableList<Email> _emails;
         private IImmutableSet<Email> _toBeDeleted;
@@ -65,6 +66,7 @@ namespace S3Pop3Server
             _machine = new(State.Connected);
             _apopTrigger = _machine.SetTriggerParameters<string, string>(Trigger.Apop);
             _listTrigger = _machine.SetTriggerParameters<int?>(Trigger.List);
+            _retrTrigger = _machine.SetTriggerParameters<int>(Trigger.Retr);
 
             ConfigureStateMachine();
         }
@@ -84,6 +86,7 @@ namespace S3Pop3Server
                     "QUIT" => Quit(),
                     "STAT" => Stat(),
                     "LIST" => List(arguments.Any() ? int.Parse(arguments[0]) : null),
+                    "RETR" => Retr(int.Parse(arguments[0])),
                     _ => throw new NotImplementedException(command),
                 };
                 await triggerTask;
@@ -114,6 +117,11 @@ namespace S3Pop3Server
             return _machine.FireAsync(_listTrigger, msg);
         }
 
+        public Task Retr(int msg)
+        {
+            return _machine.FireAsync(_retrTrigger, msg);
+        }
+
         private void ConfigureStateMachine()
         {
             _machine.Configure(State.Connected)
@@ -130,7 +138,7 @@ namespace S3Pop3Server
                 .OnEntryFromAsync(_listTrigger, OnList)
                 .PermitReentry(Trigger.Stat)
                 .PermitReentry(Trigger.List)
-                .PermitReentry(Trigger.Retr)
+                .InternalTransitionAsync(_retrTrigger, (msg, t) => OnRetr(msg))
                 .PermitReentry(Trigger.Dele)
                 .PermitReentry(Trigger.Noop)
                 .PermitReentry(Trigger.Rset)
@@ -197,6 +205,18 @@ namespace S3Pop3Server
             {
                 await Writer.WriteLineAsync($"{email.MessageNumber} {email.Size}");
             }
+            await Writer.WriteLineAsync($".");
+        }
+
+        private async Task OnRetr(int msg)
+        {
+            var response = await _mediator.Send(new GetMailboxContentQuery
+            {
+                Item = _emails.First(email => email.MessageNumber == msg),
+            });
+
+            await Writer.WriteLineAsync($"+OK");
+            await response.ContentStream.CopyToAsync(Writer.BaseStream);
             await Writer.WriteLineAsync($".");
         }
 
