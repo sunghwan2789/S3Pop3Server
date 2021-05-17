@@ -63,15 +63,15 @@ namespace S3Pop3Server
             }
 
             var command = buffer;
-            var arguments = Span<char>.Empty;
 
             var startOfArguments = buffer.IndexOf(' ');
-            if (startOfArguments != -1)
+            if (startOfArguments == -1)
             {
-                command = buffer[..startOfArguments];
-                arguments = buffer[(startOfArguments + 1)..];
+                return (command.ToString(), Span<string>.Empty.ToArray());
             }
 
+            command = buffer[..startOfArguments];
+            var arguments = buffer[(startOfArguments + 1)..];
             return (command.ToString(), arguments.ToString().Split(' '));
         }
     }
