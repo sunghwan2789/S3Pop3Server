@@ -93,7 +93,8 @@ namespace S3Pop3Server
             }
             catch (Exception ex)
             {
-                await Writer.WriteLineAsync($"-ERR {ex}");
+                _logger.LogError(ex, "{EndPoint} - Fail", EndPoint);
+                await Writer.WriteLineAsync($"-ERR");
             }
         }
 

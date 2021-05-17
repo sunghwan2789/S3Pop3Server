@@ -57,7 +57,7 @@ namespace S3Pop3Server
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "{@EndPoint} - Error handling a session", session.EndPoint);
+                _logger.LogError(ex, "{EndPoint} - Error handling a session", session.EndPoint);
             }
         }
     }

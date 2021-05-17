@@ -42,14 +42,14 @@ namespace S3Pop3Server
                 // Socket.ReceiveTimeout 은 ReadAsync 에서는 효과 없으니까 Read 사용하자
                 // https://docs.microsoft.com/en-us/dotnet/api/system.net.sockets.socket.receivetimeout?view=net-5.0#remarks
                 var received = await Task.Run(() => session.Reader.Read(buffer), cancellationToken);
-                _logger.LogInformation("{@EndPoint} - Read {received} bytes", session.EndPoint, received);
+                _logger.LogInformation("{EndPoint} - Read {received} bytes", session.EndPoint, received);
                 if (received == 0)
                 {
                     return;
                 }
 
                 var (command, arguments) = GetMessage(buffer[..received]);
-                _logger.LogDebug("{@EndPoint} - Command {command} / {arguments}", session.EndPoint, command, arguments);
+                _logger.LogDebug("{EndPoint} - Command {command} / {arguments}", session.EndPoint, command, arguments);
                 await session.Invoke(command, arguments);
             }
         }

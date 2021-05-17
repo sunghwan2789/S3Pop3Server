@@ -39,7 +39,7 @@ namespace S3Pop3Server
                 {
                     _logger.LogInformation("Start AcceptTcpClient");
                     var client = await _listener.AcceptTcpClientAsync();
-                    _logger.LogInformation("End AcceptTcpClient: {@EndPoint}", client.Client.RemoteEndPoint);
+                    _logger.LogInformation("End AcceptTcpClient: {EndPoint}", client.Client.RemoteEndPoint);
 
                     _ = _connectionHandler.Handle(client, stoppingToken);
                 }

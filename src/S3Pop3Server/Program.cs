@@ -10,6 +10,7 @@ using MediatR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Serilog;
 
 namespace S3Pop3Server
 {
@@ -39,6 +40,12 @@ namespace S3Pop3Server
                     // awsOptions.Credentials = new EnvironmentVariablesAWSCredentials();
                     services.AddDefaultAWSOptions(awsOptions);
                     services.AddAWSService<IAmazonS3>();
+                })
+                .UseSerilog((hostContext, services, logger) =>
+                {
+                    logger.MinimumLevel.Verbose();
+                    logger.Enrich.FromLogContext();
+                    logger.WriteTo.Console();
                 });
     }
 }
