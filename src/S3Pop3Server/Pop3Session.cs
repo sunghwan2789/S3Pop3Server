@@ -165,9 +165,10 @@ namespace S3Pop3Server
 
             _machine.Configure(State.Update)
                 .OnEntryAsync(OnUpdate)
-                .Permit(Trigger.Close, State.Closed);
+                .InitialTransition(State.Closed);
 
             _machine.Configure(State.Closed)
+                .SubstateOf(State.Update)
                 .OnEntryAsync(OnClosed);
         }
 
@@ -278,9 +279,14 @@ namespace S3Pop3Server
             await Writer.WriteLineAsync($".");
         }
 
-        private Task OnUpdate()
+        private async Task OnUpdate()
         {
-            throw new NotImplementedException();
+            if (_toBeDeleted.Any())
+            {
+                throw new NotImplementedException();
+            }
+
+            await Writer.WriteLineAsync("+OK");
         }
 
         private Task OnClosed()
