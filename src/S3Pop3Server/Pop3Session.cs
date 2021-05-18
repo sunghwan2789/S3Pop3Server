@@ -77,9 +77,9 @@ namespace S3Pop3Server
             ConfigureStateMachine();
         }
 
-        public Task Start()
+        public async Task Start()
         {
-            return _machine.FireAsync(Trigger.Start);
+            await _machine.FireAsync(Trigger.Start);
         }
 
         public async Task Invoke(string command, string[] arguments)
@@ -106,39 +106,39 @@ namespace S3Pop3Server
             }
         }
 
-        public Task Apop(string name, string digest)
+        public async Task Apop(string name, string digest)
         {
-            return _machine.FireAsync(_apopTrigger, name, digest);
+            await _machine.FireAsync(_apopTrigger, name, digest);
         }
 
-        public Task Quit()
+        public async Task Quit()
         {
-            return _machine.FireAsync(Trigger.Quit);
+            await _machine.FireAsync(Trigger.Quit);
         }
 
-        public Task Stat()
+        public async Task Stat()
         {
-            return _machine.FireAsync(Trigger.Stat);
+            await _machine.FireAsync(Trigger.Stat);
         }
 
-        public Task Uidl(int? msg)
+        public async Task Uidl(int? msg)
         {
-            return _machine.FireAsync(_uidlTrigger, msg);
+            await _machine.FireAsync(_uidlTrigger, msg);
         }
 
-        public Task List(int? msg)
+        public async Task List(int? msg)
         {
-            return _machine.FireAsync(_listTrigger, msg);
+            await _machine.FireAsync(_listTrigger, msg);
         }
 
-        public Task Top(int msg, int n)
+        public async Task Top(int msg, int n)
         {
-            return _machine.FireAsync(_topTrigger, msg, n);
+            await _machine.FireAsync(_topTrigger, msg, n);
         }
 
-        public Task Retr(int msg)
+        public async Task Retr(int msg)
         {
-            return _machine.FireAsync(_retrTrigger, msg);
+            await _machine.FireAsync(_retrTrigger, msg);
         }
 
         private void ConfigureStateMachine()
@@ -172,10 +172,10 @@ namespace S3Pop3Server
                 .OnEntryAsync(OnClosed);
         }
 
-        private Task OnAuthorization()
+        private async Task OnAuthorization()
         {
             var timestamp = $"<1896.{DateTime.UtcNow.Ticks}@dbc.mtview.ca.us>";
-            return Writer.WriteLineAsync($"+OK POP3 server ready {timestamp}");
+            await Writer.WriteLineAsync($"+OK POP3 server ready {timestamp}");
         }
 
         private async Task OnTransaction(string name, string digest)
