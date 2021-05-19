@@ -67,7 +67,7 @@ namespace S3Pop3Server
             var startOfArguments = buffer.IndexOf(' ');
             if (startOfArguments == -1)
             {
-                return (command.ToString(), ReadOnlySpan<string>.Empty.ToArray());
+                return (command.ToString(), new string[0]);
             }
 
             command = buffer[..startOfArguments];
