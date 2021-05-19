@@ -108,78 +108,6 @@ namespace S3Pop3Server
 
         public async Task Apop(string name, string digest)
         {
-            await _machine.FireAsync(_apopTrigger, name, digest);
-        }
-
-        public async Task Quit()
-        {
-            await _machine.FireAsync(Trigger.Quit);
-        }
-
-        public async Task Stat()
-        {
-            await _machine.FireAsync(Trigger.Stat);
-        }
-
-        public async Task Uidl(int? msg)
-        {
-            await _machine.FireAsync(_uidlTrigger, msg);
-        }
-
-        public async Task List(int? msg)
-        {
-            await _machine.FireAsync(_listTrigger, msg);
-        }
-
-        public async Task Top(int msg, int n)
-        {
-            await _machine.FireAsync(_topTrigger, msg, n);
-        }
-
-        public async Task Retr(int msg)
-        {
-            await _machine.FireAsync(_retrTrigger, msg);
-        }
-
-        private void ConfigureStateMachine()
-        {
-            _machine.Configure(State.Connected)
-                .Permit(Trigger.Start, State.Authorization);
-
-            _machine.Configure(State.Authorization)
-                .OnEntryAsync(OnAuthorization)
-                .Permit(Trigger.Apop, State.Transaction)
-                .Permit(Trigger.Quit, State.Closed);
-
-            _machine.Configure(State.Transaction)
-                .OnEntryFromAsync(_apopTrigger, OnTransaction)
-                .InternalTransitionAsync(Trigger.Stat, _ => OnStat())
-                .InternalTransitionAsync(_uidlTrigger, (msg, _) => OnUidl(msg))
-                .InternalTransitionAsync(_listTrigger, (msg, _) => OnList(msg))
-                .InternalTransitionAsync(_topTrigger, (msg, n, _) => OnTop(msg, n))
-                .InternalTransitionAsync(_retrTrigger, (msg, _) => OnRetr(msg))
-                .PermitReentry(Trigger.Dele)
-                .PermitReentry(Trigger.Noop)
-                .PermitReentry(Trigger.Rset)
-                .Permit(Trigger.Quit, State.Update);
-
-            _machine.Configure(State.Update)
-                .OnEntryAsync(OnUpdate)
-                .InitialTransition(State.Closed);
-
-            _machine.Configure(State.Closed)
-                .SubstateOf(State.Update)
-                .OnEntryAsync(OnClosed);
-        }
-
-        private async Task OnAuthorization()
-        {
-            var timestamp = $"<1896.{DateTime.UtcNow.Ticks}@dbc.mtview.ca.us>";
-            await Writer.WriteLineAsync($"+OK POP3 server ready {timestamp}");
-        }
-
-        private async Task OnTransaction(string name, string digest)
-        {
             if (name != "admin")
             {
                 throw new AuthenticationException();
@@ -196,53 +124,68 @@ namespace S3Pop3Server
             _toBeDeleted = ImmutableHashSet<Email>.Empty;
 
             await Writer.WriteLineAsync("+OK");
+
+            await _machine.FireAsync(_apopTrigger, name, digest);
         }
 
-        private async Task OnStat()
+        public async Task Quit()
+        {
+            await _machine.FireAsync(Trigger.Quit);
+        }
+
+        public async Task Stat()
         {
             var currentEmails = _emails.Except(_toBeDeleted);
             var count = currentEmails.Count();
             var size = currentEmails.Sum(email => email.Size);
             await Writer.WriteLineAsync($"+OK {count} {size}");
+
+            await _machine.FireAsync(Trigger.Stat);
         }
 
-        private async Task OnUidl(int? msg)
+        public async Task Uidl(int? msg)
         {
             if (msg != null)
             {
                 var email = _emails.First(email => email.MessageNumber == msg);
                 await Writer.WriteLineAsync($"+OK {email.MessageNumber} {email.Id}");
-                return;
+            }
+            else
+            {
+                var currentEmails = _emails.Except(_toBeDeleted);
+                await Writer.WriteLineAsync($"+OK");
+                foreach (var email in currentEmails)
+                {
+                    await Writer.WriteLineAsync($"{email.MessageNumber} {email.Id}");
+                }
+                await Writer.WriteLineAsync($".");
             }
 
-            var currentEmails = _emails.Except(_toBeDeleted);
-            await Writer.WriteLineAsync($"+OK");
-            foreach (var email in currentEmails)
-            {
-                await Writer.WriteLineAsync($"{email.MessageNumber} {email.Id}");
-            }
-            await Writer.WriteLineAsync($".");
+            await _machine.FireAsync(_uidlTrigger, msg);
         }
 
-        private async Task OnList(int? msg)
+        public async Task List(int? msg)
         {
             if (msg != null)
             {
                 var email = _emails.First(email => email.MessageNumber == msg);
                 await Writer.WriteLineAsync($"+OK {email.MessageNumber} {email.Size}");
-                return;
+            }
+            else
+            {
+                var currentEmails = _emails.Except(_toBeDeleted);
+                await Writer.WriteLineAsync($"+OK");
+                foreach (var email in currentEmails)
+                {
+                    await Writer.WriteLineAsync($"{email.MessageNumber} {email.Size}");
+                }
+                await Writer.WriteLineAsync($".");
             }
 
-            var currentEmails = _emails.Except(_toBeDeleted);
-            await Writer.WriteLineAsync($"+OK");
-            foreach (var email in currentEmails)
-            {
-                await Writer.WriteLineAsync($"{email.MessageNumber} {email.Size}");
-            }
-            await Writer.WriteLineAsync($".");
+            await _machine.FireAsync(_listTrigger, msg);
         }
 
-        private async Task OnTop(int msg, int n)
+        public async Task Top(int msg, int n)
         {
             var response = await _mediator.Send(new GetMailboxContentQuery
             {
@@ -264,9 +207,11 @@ namespace S3Pop3Server
                 await Writer.WriteLineAsync(await reader.ReadLineAsync());
             }
             await Writer.WriteLineAsync($".");
+
+            await _machine.FireAsync(_topTrigger, msg, n);
         }
 
-        private async Task OnRetr(int msg)
+        public async Task Retr(int msg)
         {
             var response = await _mediator.Send(new GetMailboxContentQuery
             {
@@ -277,6 +222,46 @@ namespace S3Pop3Server
             await response.ContentStream.CopyToAsync(Writer.BaseStream);
             await Writer.WriteLineAsync();
             await Writer.WriteLineAsync($".");
+
+            await _machine.FireAsync(_retrTrigger, msg);
+        }
+
+        private void ConfigureStateMachine()
+        {
+            _machine.Configure(State.Connected)
+                .Permit(Trigger.Start, State.Authorization);
+
+            _machine.Configure(State.Authorization)
+                .OnEntryAsync(OnAuthorization)
+                .Permit(Trigger.Apop, State.Transaction)
+                .Permit(Trigger.Quit, State.Closed);
+
+            _machine.Configure(State.Transaction)
+                .PermitReentry(Trigger.Stat)
+                .PermitReentry(Trigger.Uidl)
+                .PermitReentry(Trigger.List)
+                .PermitReentry(Trigger.Top)
+                .PermitReentry(Trigger.Retr)
+                .PermitReentry(Trigger.Dele)
+                .PermitReentry(Trigger.Noop)
+                .PermitReentry(Trigger.Rset)
+                .Permit(Trigger.Quit, State.Update);
+
+            _machine.Configure(State.Update)
+                .OnEntryAsync(OnUpdate)
+                .InitialTransition(State.Closed);
+
+            _machine.Configure(State.Closed)
+                .SubstateOf(State.Update)
+                .OnEntryAsync(OnClosed);
+
+            _machine.OnTransitioned((t) => _logger.LogDebug("{EndPoint} - Transitioned: {from} - ({trigger}) > {to}", EndPoint, t.Source, t.Trigger, t.Destination));
+        }
+
+        private async Task OnAuthorization()
+        {
+            var timestamp = $"<1896.{DateTime.UtcNow.Ticks}@dbc.mtview.ca.us>";
+            await Writer.WriteLineAsync($"+OK POP3 server ready {timestamp}");
         }
 
         private async Task OnUpdate()
