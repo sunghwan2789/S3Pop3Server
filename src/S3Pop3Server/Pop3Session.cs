@@ -198,13 +198,22 @@ namespace S3Pop3Server
             string line = null;
             while (!string.IsNullOrEmpty(line = await reader.ReadLineAsync()))
             {
+                if (ShouldByteStuffed(line))
+                {
+                    await Writer.WriteAsync('.');
+                }
                 await Writer.WriteLineAsync(line);
             }
             await Writer.WriteLineAsync();
 
             for (var i = 0; i < n; i++)
             {
-                await Writer.WriteLineAsync(await reader.ReadLineAsync());
+                line = await reader.ReadLineAsync();
+                if (ShouldByteStuffed(line))
+                {
+                    await Writer.WriteAsync('.');
+                }
+                await Writer.WriteLineAsync(line);
             }
             await Writer.WriteLineAsync($".");
 
@@ -219,8 +228,16 @@ namespace S3Pop3Server
             });
 
             await Writer.WriteLineAsync($"+OK");
-            await response.ContentStream.CopyToAsync(Writer.BaseStream);
-            await Writer.WriteLineAsync();
+            using var reader = new StreamReader(response.ContentStream);
+            while (!reader.EndOfStream)
+            {
+                var line = await reader.ReadLineAsync();
+                if (ShouldByteStuffed(line))
+                {
+                    await Writer.WriteAsync('.');
+                }
+                await Writer.WriteLineAsync(line);
+            }
             await Writer.WriteLineAsync($".");
 
             await _machine.FireAsync(_retrTrigger, msg);
@@ -279,6 +296,11 @@ namespace S3Pop3Server
         {
             Client.Close();
             return Task.CompletedTask;
+        }
+
+        private static bool ShouldByteStuffed(ReadOnlySpan<char> line)
+        {
+            return line.StartsWith(".");
         }
     }
 }
