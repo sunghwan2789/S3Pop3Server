@@ -318,12 +318,22 @@ namespace S3Pop3Server
 
         private async Task OnUpdate()
         {
-            if (_toBeDeleted.Any())
+            if (!_toBeDeleted.Any())
+            {
+                await _machine.FireAsync(Trigger.Close);
+                return;
+            }
+
+            try
             {
                 _ = await _mediator.Send(new DeleteMailboxItemsCommand
                 {
                     Items = _toBeDeleted,
                 });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "{EndPoint} - Fail", EndPoint);
             }
 
             await _machine.FireAsync(Trigger.Close);
