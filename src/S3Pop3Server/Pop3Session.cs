@@ -206,7 +206,7 @@ namespace S3Pop3Server
             }
             await Writer.WriteLineAsync();
 
-            for (var i = 0; i < n; i++)
+            for (var i = 0; i < n && !reader.EndOfStream; i++)
             {
                 line = await reader.ReadLineAsync();
                 if (ShouldByteStuffed(line))
