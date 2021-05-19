@@ -54,7 +54,7 @@ namespace S3Pop3Server
             }
         }
 
-        private static (string command, string[] arguments) GetMessage(Span<char> buffer)
+        private static (string command, string[] arguments) GetMessage(ReadOnlySpan<char> buffer)
         {
             var endOfMessage = buffer.IndexOf(ControlChars.CrLf);
             if (endOfMessage != -1)
@@ -67,7 +67,7 @@ namespace S3Pop3Server
             var startOfArguments = buffer.IndexOf(' ');
             if (startOfArguments == -1)
             {
-                return (command.ToString(), Span<string>.Empty.ToArray());
+                return (command.ToString(), ReadOnlySpan<string>.Empty.ToArray());
             }
 
             command = buffer[..startOfArguments];
