@@ -19,7 +19,7 @@ namespace S3Pop3Server
     {
         private enum State
         {
-            Connected,
+            Start,
             Authorization,
             Transaction,
             Update,
@@ -67,7 +67,7 @@ namespace S3Pop3Server
 
             _mediator = mediator;
             _logger = logger;
-            _machine = new(State.Connected);
+            _machine = new(State.Start);
             _apopTrigger = _machine.SetTriggerParameters<string, string>(Trigger.Apop);
             _uidlTrigger = _machine.SetTriggerParameters<int?>(Trigger.Uidl);
             _listTrigger = _machine.SetTriggerParameters<int?>(Trigger.List);
@@ -79,7 +79,7 @@ namespace S3Pop3Server
 
         public async Task Start()
         {
-            await _machine.FireAsync(Trigger.Start);
+            await _machine.ActivateAsync();
         }
 
         public async Task Invoke(string command, string[] arguments)
@@ -228,7 +228,8 @@ namespace S3Pop3Server
 
         private void ConfigureStateMachine()
         {
-            _machine.Configure(State.Connected)
+            _machine.Configure(State.Start)
+                .OnActivateAsync(() => _machine.FireAsync(Trigger.Start))
                 .Permit(Trigger.Start, State.Authorization);
 
             _machine.Configure(State.Authorization)
