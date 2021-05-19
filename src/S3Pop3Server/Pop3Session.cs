@@ -98,6 +98,8 @@ namespace S3Pop3Server
 
         public async Task Apop(string name, string digest)
         {
+            _machine.EnsurePermitted(Trigger.Apop);
+
             if (name != "admin")
             {
                 throw new AuthenticationException();
@@ -125,6 +127,8 @@ namespace S3Pop3Server
 
         public async Task Stat()
         {
+            _machine.EnsurePermitted(Trigger.Stat);
+
             var currentEmails = _emails.Except(_toBeDeleted);
             var count = currentEmails.Count();
             var size = currentEmails.Sum(email => email.Size);
@@ -135,6 +139,8 @@ namespace S3Pop3Server
 
         public async Task Uidl(int? msg)
         {
+            _machine.EnsurePermitted(Trigger.Uidl);
+
             if (msg != null)
             {
                 var email = _emails.First(email => email.MessageNumber == msg);
@@ -156,6 +162,8 @@ namespace S3Pop3Server
 
         public async Task List(int? msg)
         {
+            _machine.EnsurePermitted(Trigger.List);
+
             if (msg != null)
             {
                 var email = _emails.First(email => email.MessageNumber == msg);
@@ -177,6 +185,8 @@ namespace S3Pop3Server
 
         public async Task Top(int msg, int n)
         {
+            _machine.EnsurePermitted(Trigger.Top);
+
             var response = await _mediator.Send(new GetMailboxContentQuery
             {
                 Item = _emails.First(email => email.MessageNumber == msg),
@@ -212,6 +222,8 @@ namespace S3Pop3Server
 
         public async Task Retr(int msg)
         {
+            _machine.EnsurePermitted(Trigger.Retr);
+
             var response = await _mediator.Send(new GetMailboxContentQuery
             {
                 Item = _emails.First(email => email.MessageNumber == msg),
