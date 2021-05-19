@@ -85,6 +85,9 @@ namespace S3Pop3Server
                     "LIST" => List(arguments.Any() ? int.Parse(arguments[0]) : null),
                     "TOP" => Top(int.Parse(arguments[0]), int.Parse(arguments[1])),
                     "RETR" => Retr(int.Parse(arguments[0])),
+                    "DELE" => Dele(int.Parse(arguments[0])),
+                    "NOOP" => Noop(),
+                    "RSET" => Rset(),
                     _ => throw new NotImplementedException(command),
                 };
                 await triggerTask;
@@ -243,6 +246,17 @@ namespace S3Pop3Server
             await Writer.WriteLineAsync($".");
 
             await _machine.FireAsync(Trigger.Retr);
+        }
+
+        public async Task Dele(int msg)
+        {
+            _machine.EnsurePermitted(Trigger.Dele);
+
+            var email = _emails.First(email => email.MessageNumber == msg);
+            _toBeDeleted = _toBeDeleted.Add(email);
+            await Writer.WriteLineAsync($"+OK");
+
+            await _machine.FireAsync(Trigger.Dele);
         }
 
         private void ConfigureStateMachine()
