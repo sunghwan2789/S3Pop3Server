@@ -50,11 +50,6 @@ namespace S3Pop3Server
         private readonly IMediator _mediator;
         private readonly ILogger<Pop3Session> _logger;
         private readonly StateMachine<State, Trigger> _machine;
-        private readonly StateMachine<State, Trigger>.TriggerWithParameters<string, string> _apopTrigger;
-        private readonly StateMachine<State, Trigger>.TriggerWithParameters<int?> _uidlTrigger;
-        private readonly StateMachine<State, Trigger>.TriggerWithParameters<int?> _listTrigger;
-        private readonly StateMachine<State, Trigger>.TriggerWithParameters<int, int> _topTrigger;
-        private readonly StateMachine<State, Trigger>.TriggerWithParameters<int> _retrTrigger;
 
         private IImmutableList<Email> _emails;
         private IImmutableSet<Email> _toBeDeleted;
@@ -68,11 +63,6 @@ namespace S3Pop3Server
             _mediator = mediator;
             _logger = logger;
             _machine = new(State.Start);
-            _apopTrigger = _machine.SetTriggerParameters<string, string>(Trigger.Apop);
-            _uidlTrigger = _machine.SetTriggerParameters<int?>(Trigger.Uidl);
-            _listTrigger = _machine.SetTriggerParameters<int?>(Trigger.List);
-            _topTrigger = _machine.SetTriggerParameters<int, int>(Trigger.Top);
-            _retrTrigger = _machine.SetTriggerParameters<int>(Trigger.Retr);
 
             ConfigureStateMachine();
         }
@@ -125,7 +115,7 @@ namespace S3Pop3Server
 
             await Writer.WriteLineAsync("+OK");
 
-            await _machine.FireAsync(_apopTrigger, name, digest);
+            await _machine.FireAsync(Trigger.Apop);
         }
 
         public async Task Quit()
@@ -161,7 +151,7 @@ namespace S3Pop3Server
                 await Writer.WriteLineAsync($".");
             }
 
-            await _machine.FireAsync(_uidlTrigger, msg);
+            await _machine.FireAsync(Trigger.Uidl);
         }
 
         public async Task List(int? msg)
@@ -182,7 +172,7 @@ namespace S3Pop3Server
                 await Writer.WriteLineAsync($".");
             }
 
-            await _machine.FireAsync(_listTrigger, msg);
+            await _machine.FireAsync(Trigger.List);
         }
 
         public async Task Top(int msg, int n)
@@ -217,7 +207,7 @@ namespace S3Pop3Server
             }
             await Writer.WriteLineAsync($".");
 
-            await _machine.FireAsync(_topTrigger, msg, n);
+            await _machine.FireAsync(Trigger.Top);
         }
 
         public async Task Retr(int msg)
@@ -240,7 +230,7 @@ namespace S3Pop3Server
             }
             await Writer.WriteLineAsync($".");
 
-            await _machine.FireAsync(_retrTrigger, msg);
+            await _machine.FireAsync(Trigger.Retr);
         }
 
         private void ConfigureStateMachine()
