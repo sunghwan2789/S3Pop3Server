@@ -259,6 +259,15 @@ namespace S3Pop3Server
             await _machine.FireAsync(Trigger.Dele);
         }
 
+        public async Task Noop()
+        {
+            _machine.EnsurePermitted(Trigger.Noop);
+
+            await Writer.WriteLineAsync($"+OK");
+
+            await _machine.FireAsync(Trigger.Noop);
+        }
+
         private void ConfigureStateMachine()
         {
             _machine.Configure(State.Start)
