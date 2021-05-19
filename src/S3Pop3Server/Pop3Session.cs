@@ -267,10 +267,9 @@ namespace S3Pop3Server
 
             _machine.Configure(State.Update)
                 .OnEntryAsync(OnUpdate)
-                .InitialTransition(State.Closed);
+                .Permit(Trigger.Close, State.Closed);
 
             _machine.Configure(State.Closed)
-                .SubstateOf(State.Update)
                 .OnEntryAsync(OnClosed);
 
             _machine.OnTransitioned((t) => _logger.LogDebug("{EndPoint} - Transitioned: {from} - ({trigger}) > {to}", EndPoint, t.Source, t.Trigger, t.Destination));
@@ -289,13 +288,13 @@ namespace S3Pop3Server
                 throw new NotImplementedException();
             }
 
-            await Writer.WriteLineAsync("+OK");
+            await _machine.FireAsync(Trigger.Close);
         }
 
-        private Task OnClosed()
+        private async Task OnClosed()
         {
+            await Writer.WriteLineAsync("+OK");
             Client.Close();
-            return Task.CompletedTask;
         }
 
         private static bool ShouldByteStuffed(ReadOnlySpan<char> line)
