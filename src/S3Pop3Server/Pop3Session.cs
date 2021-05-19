@@ -281,11 +281,11 @@ namespace S3Pop3Server
         private void ConfigureStateMachine()
         {
             _machine.Configure(State.Start)
-                .OnActivateAsync(() => _machine.FireAsync(Trigger.Start))
+                .OnActivateAsync(async () => await _machine.FireAsync(Trigger.Start))
                 .Permit(Trigger.Start, State.Authorization);
 
             _machine.Configure(State.Authorization)
-                .OnEntryAsync(OnAuthorization)
+                .OnEntryAsync(async () => await OnAuthorization())
                 .Permit(Trigger.Apop, State.Transaction)
                 .Permit(Trigger.Quit, State.Closed);
 
@@ -301,7 +301,7 @@ namespace S3Pop3Server
                 .Permit(Trigger.Quit, State.Update);
 
             _machine.Configure(State.Update)
-                .OnEntryAsync(OnUpdate)
+                .OnEntryAsync(async () => await OnUpdate())
                 .Permit(Trigger.Close, State.Closed);
 
             _machine.Configure(State.Closed)
