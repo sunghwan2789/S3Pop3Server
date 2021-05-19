@@ -116,7 +116,7 @@ namespace S3Pop3Server
                     MessageNumber = index + 1,
                 })
                 .ToImmutableList();
-            _toBeDeleted = ImmutableHashSet<Email>.Empty;
+            _toBeDeleted = ImmutableHashSet.Create<Email>();
 
             await Writer.WriteLineAsync("+OK");
 
