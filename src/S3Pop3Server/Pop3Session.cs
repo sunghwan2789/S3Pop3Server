@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading.Tasks;
 using MediatR;
 using Microsoft.Extensions.Logging;
+using S3Pop3Server.Commands;
 using S3Pop3Server.Queries;
 using Stateless;
 
@@ -319,7 +320,10 @@ namespace S3Pop3Server
         {
             if (_toBeDeleted.Any())
             {
-                throw new NotImplementedException();
+                _ = await _mediator.Send(new DeleteMailboxItemsCommand
+                {
+                    Items = _toBeDeleted,
+                });
             }
 
             await _machine.FireAsync(Trigger.Close);
