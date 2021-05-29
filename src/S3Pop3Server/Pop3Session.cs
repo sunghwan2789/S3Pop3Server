@@ -32,7 +32,6 @@ namespace S3Pop3Server
             Start,
             User,
             Pass,
-            Apop,
             Quit,
             Stat,
             Uidl,
@@ -84,7 +83,6 @@ namespace S3Pop3Server
                 {
                     "USER" => User(arguments[0]),
                     "PASS" => Pass(string.Join(' ', arguments)),
-                    "APOP" => Apop(arguments[0], arguments[1]),
                     "QUIT" => Quit(),
                     "STAT" => Stat(),
                     "UIDL" => Uidl(arguments.Any() ? int.Parse(arguments[0]) : null),
@@ -136,30 +134,6 @@ namespace S3Pop3Server
             await Writer.WriteLineAsync("+OK");
 
             await _machine.FireAsync(Trigger.Pass);
-        }
-
-        public async Task Apop(string name, string digest)
-        {
-            _machine.EnsurePermitted(Trigger.Apop);
-
-            if (name != "admin")
-            {
-                throw new AuthenticationException();
-            }
-
-            var response = await _mediator.Send(new GetMailboxListingQuery());
-
-            _emails = response.Items
-                .Select((email, index) => email with
-                {
-                    MessageNumber = index + 1,
-                })
-                .ToImmutableList();
-            _toBeDeleted = ImmutableHashSet.Create<Email>();
-
-            await Writer.WriteLineAsync("+OK");
-
-            await _machine.FireAsync(Trigger.Apop);
         }
 
         public async Task Quit()
@@ -326,7 +300,6 @@ namespace S3Pop3Server
                 .OnEntryFromAsync(Trigger.Start, async () => await OnAuthorization())
                 .PermitReentry(Trigger.User)
                 .PermitIf(Trigger.Pass, State.Transaction, () => !string.IsNullOrEmpty(_mailboxName))
-                .Permit(Trigger.Apop, State.Transaction)
                 .Permit(Trigger.Quit, State.Closed);
 
             _machine.Configure(State.Transaction)
