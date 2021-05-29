@@ -27,15 +27,6 @@ builder.ConfigureServices((hostContext, services) =>
     awsOptions.Credentials = new BasicAWSCredentials(
         hostContext.Configuration["AWS:AccessKey"],
         hostContext.Configuration["AWS:SecretKey"]);
-    // https://stackoverflow.com/a/48312720
-    try
-    {
-        awsOptions.Credentials = new EnvironmentVariablesAWSCredentials();
-    }
-    catch (InvalidOperationException)
-    {
-        // noop, use appsettings
-    }
     services.AddDefaultAWSOptions(awsOptions);
     services.AddAWSService<IAmazonS3>();
 });
