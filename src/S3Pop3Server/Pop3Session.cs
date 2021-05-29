@@ -118,6 +118,8 @@ namespace S3Pop3Server
         {
             _machine.EnsurePermitted(Trigger.Pass);
 
+            // TODO: password validation
+
             var response = await _mediator.Send(new GetMailboxListingQuery
             {
                 MailboxName = _mailboxName,
