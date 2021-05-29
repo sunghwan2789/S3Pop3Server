@@ -12,19 +12,17 @@ namespace S3Pop3Server.Commands
     public class DeleteMailboxItemsCommandHandler : IRequestHandler<DeleteMailboxItemsCommand, bool>
     {
         private readonly IAmazonS3 _s3;
-        private readonly S3Options _options;
 
-        public DeleteMailboxItemsCommandHandler(IAmazonS3 s3, IOptions<S3Options> options)
+        public DeleteMailboxItemsCommandHandler(IAmazonS3 s3)
         {
             _s3 = s3;
-            _options = options.Value;
         }
 
         public async Task<bool> Handle(DeleteMailboxItemsCommand request, CancellationToken cancellationToken)
         {
             var response = await _s3.DeleteObjectsAsync(new DeleteObjectsRequest
             {
-                BucketName = _options.BucketName,
+                BucketName = request.MailboxName,
                 Objects = request.Items
                     .Select(item => new KeyVersion
                     {

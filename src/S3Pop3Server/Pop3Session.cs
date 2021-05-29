@@ -205,6 +205,7 @@ namespace S3Pop3Server
 
             var response = await _mediator.Send(new GetMailboxContentQuery
             {
+                MailboxName = _mailboxName,
                 Item = _emails.First(email => email.MessageNumber == msg),
             });
 
@@ -242,6 +243,7 @@ namespace S3Pop3Server
 
             var response = await _mediator.Send(new GetMailboxContentQuery
             {
+                MailboxName = _mailboxName,
                 Item = _emails.First(email => email.MessageNumber == msg),
             });
 
@@ -341,6 +343,7 @@ namespace S3Pop3Server
             {
                 _ = await _mediator.Send(new DeleteMailboxItemsCommand
                 {
+                    MailboxName = _mailboxName,
                     Items = _toBeDeleted,
                 });
             }
