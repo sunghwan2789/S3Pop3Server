@@ -36,7 +36,14 @@ namespace S3Pop3Server
                         hostContext.Configuration["AWS:AccessKey"],
                         hostContext.Configuration["AWS:SecretKey"]);
                     // https://stackoverflow.com/a/48312720
-                    // awsOptions.Credentials = new EnvironmentVariablesAWSCredentials();
+                    try
+                    {
+                        awsOptions.Credentials = new EnvironmentVariablesAWSCredentials();
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // noop, use appsettings
+                    }
                     services.AddDefaultAWSOptions(awsOptions);
                     services.AddAWSService<IAmazonS3>();
                 })
