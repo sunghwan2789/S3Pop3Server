@@ -10,17 +10,15 @@ namespace S3Pop3Server.Queries
     public class GetMailboxListingQueryHandler : IRequestHandler<GetMailboxListingQuery, GetMailboxListingQueryResponse>
     {
         private readonly IAmazonS3 _s3;
-        private readonly S3Options _options;
 
-        public GetMailboxListingQueryHandler(IAmazonS3 s3, IOptions<S3Options> options)
+        public GetMailboxListingQueryHandler(IAmazonS3 s3)
         {
             _s3 = s3;
-            _options = options.Value;
         }
 
         public async Task<GetMailboxListingQueryResponse> Handle(GetMailboxListingQuery request, CancellationToken cancellationToken)
         {
-            var response = await _s3.ListObjectsAsync(_options.BucketName, cancellationToken);
+            var response = await _s3.ListObjectsAsync(request.MailboxName, cancellationToken);
 
             return new GetMailboxListingQueryResponse
             {

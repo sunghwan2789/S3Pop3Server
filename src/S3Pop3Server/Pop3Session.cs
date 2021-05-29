@@ -30,6 +30,8 @@ namespace S3Pop3Server
         private enum Trigger
         {
             Start,
+            User,
+            Pass,
             Apop,
             Quit,
             Stat,
@@ -52,6 +54,7 @@ namespace S3Pop3Server
         private readonly ILogger<Pop3Session> _logger;
         private readonly StateMachine<State, Trigger> _machine;
 
+        private string _mailboxName;
         private IImmutableList<Email> _emails;
         private IImmutableSet<Email> _toBeDeleted;
 
@@ -79,6 +82,8 @@ namespace S3Pop3Server
             {
                 var triggerTask = command.ToUpperInvariant() switch
                 {
+                    "USER" => User(arguments[0]),
+                    "PASS" => Pass(string.Join(' ', arguments)),
                     "APOP" => Apop(arguments[0], arguments[1]),
                     "QUIT" => Quit(),
                     "STAT" => Stat(),
@@ -98,6 +103,39 @@ namespace S3Pop3Server
                 _logger.LogError(ex, "{EndPoint} - Fail", EndPoint);
                 await Writer.WriteLineAsync($"-ERR");
             }
+        }
+
+        public async Task User(string name)
+        {
+            _machine.EnsurePermitted(Trigger.User);
+
+            _mailboxName = name;
+
+            await Writer.WriteLineAsync("+OK");
+
+            await _machine.FireAsync(Trigger.User);
+        }
+
+        public async Task Pass(string password)
+        {
+            _machine.EnsurePermitted(Trigger.Pass);
+
+            var response = await _mediator.Send(new GetMailboxListingQuery
+            {
+                MailboxName = _mailboxName,
+            });
+
+            _emails = response.Items
+                .Select((email, index) => email with
+                {
+                    MessageNumber = index + 1,
+                })
+                .ToImmutableList();
+            _toBeDeleted = ImmutableHashSet.Create<Email>();
+
+            await Writer.WriteLineAsync("+OK");
+
+            await _machine.FireAsync(Trigger.Pass);
         }
 
         public async Task Apop(string name, string digest)
@@ -285,7 +323,9 @@ namespace S3Pop3Server
                 .Permit(Trigger.Start, State.Authorization);
 
             _machine.Configure(State.Authorization)
-                .OnEntryAsync(async () => await OnAuthorization())
+                .OnEntryFromAsync(Trigger.Start, async () => await OnAuthorization())
+                .PermitReentry(Trigger.User)
+                .PermitIf(Trigger.Pass, State.Transaction, () => !string.IsNullOrEmpty(_mailboxName))
                 .Permit(Trigger.Apop, State.Transaction)
                 .Permit(Trigger.Quit, State.Closed);
 
