@@ -29,7 +29,6 @@ namespace S3Pop3Server
                     services.AddTransient<Pop3ConnectionHandler>();
                     services.AddTransient<Pop3SessionHandler>();
 
-                    services.AddOptions<S3Options>().BindConfiguration("S3");
                     services.AddMediatR(typeof(Program));
 
                     var awsOptions = hostContext.Configuration.GetAWSOptions();
