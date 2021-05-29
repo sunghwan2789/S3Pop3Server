@@ -329,8 +329,7 @@ namespace S3Pop3Server
 
         private async Task OnAuthorization()
         {
-            var timestamp = $"<1896.{DateTime.UtcNow.Ticks}@dbc.mtview.ca.us>";
-            await Writer.WriteLineAsync($"+OK POP3 server ready {timestamp}");
+            await Writer.WriteLineAsync($"+OK");
         }
 
         private async Task OnUpdate()
